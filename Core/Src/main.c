@@ -202,6 +202,9 @@ int main(void)
           Consecutive_Cntr ++;
 		  }
 	   }
+		  //CAN_TP2DCM(0x012,CAN2_DATA_TX);
+		  //CAN2_DCM2TP();
+		  //Gen_Random_Seed();
 
 //      /*debug*/
 //      delay(500);
@@ -508,39 +511,39 @@ void delay(uint16_t delay)
 {
 	HAL_Delay(delay);
 }
-//
-///*ham nay bai1 khong xoa */uint8_t calc_SAE_J1850(uint8_t data[], uint8_t crc_len)
-//
-//{
-//    uint8_t idx, crc, temp1, temp2, idy;
-//    crc = 0;
-//    idx = 0;
-//    idy = 0;
-//    temp1 = 0;
-//    temp2 = 0;
-//    for(idx=0;idx < crc_len+1;idx++)
-//    {
-//        if(idx == 0)
-//        {
-//            temp1 = 0;
-//        }
-//        else
-//        {
-//            temp1 = data[crc_len-idx];
-//        }
-//        crc = (crc^temp1);
-//        for(idy=(uint8_t)8; idy>0; idy--)
-//        {
-//            // Save the value before the top bit is shifted out.
-//            temp2 = crc;
-//            crc <<= 1;
-//            if (0 != (temp2 & (uint8_t)128))
-//                crc ^= 0x1D;
-//        }
-//    }
-//    return crc;
-//}
-//
+
+/*ham nay bai1 khong xoa */uint8_t calc_SAE_J1850(uint8_t data[], uint8_t crc_len)
+
+{
+    uint8_t idx, crc, temp1, temp2, idy;
+    crc = 0;
+    idx = 0;
+    idy = 0;
+    temp1 = 0;
+    temp2 = 0;
+    for(idx=0;idx < crc_len+1;idx++)
+    {
+        if(idx == 0)
+        {
+            temp1 = 0;
+        }
+        else
+        {
+            temp1 = data[crc_len-idx];
+        }
+        crc = (crc^temp1);
+        for(idy=(uint8_t)8; idy>0; idy--)
+        {
+            // Save the value before the top bit is shifted out.
+            temp2 = crc;
+            crc <<= 1;
+            if (0 != (temp2 & (uint8_t)128))
+                crc ^= 0x1D;
+        }
+    }
+    return crc;
+}
+
 ///*ham nay bai1 khong xoa */ void CAN1_TX(){
 //	CAN1_pHeader.StdId = 0x12;
 //	CAN1_pHeader.DLC = 8;
