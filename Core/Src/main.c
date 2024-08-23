@@ -7,6 +7,14 @@
 #include<stdlib.h>
 #include <stdbool.h>
 
+#include"dcm_rdbi.h"
+#include"dcm_seca.h"
+#include"dcm_wdbi.h"
+#include"dcm.h"
+#include"stm32f4xx_hal_conf.h"
+#include"stm32f4xx_it.h"
+
+
 CAN_HandleTypeDef hcan1;
 CAN_HandleTypeDef hcan2;
 
@@ -61,12 +69,20 @@ void SID_22_Practice();
 void SID_2E_Practice();
 void SID_27_Practice();
 void delay(uint16_t delay);
+
+void dcm_rdbi(Dcm_Msg_Info* MsgInfor);
+void dcm_seca(Dcm_Msg_Info* MsgInfor);
+void dcm_wdbi(Dcm_Msg_Info* MsgInfor);
+void CAN_TP2DCM(uint32_t CANID, uint8_t TransBuffer[]);
+void CAN_DCM2TP();
+void CAN2_RX0_IRQHandler(void);
+void Dcm_Seca_Gen_Keys();
+
 /* USER CODE END PFP */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan);
 void CAN1_TX();
 void CAN2_TX();
 
-void ButtonHandler(void);
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 
 
@@ -77,9 +93,6 @@ int main(void)
 	uint16_t i,j = 0;
 	uint16_t Consecutive_Cntr = 0;
 
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* Configure the system clock */
@@ -91,60 +104,38 @@ int main(void)
   MX_CAN2_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  //MX_CAN1_Setup(ProtocolI_RX);
-  //MX_CAN2_Setup(ProtocolI_TX);
-//  MX_CAN1_Setup(ProtocolI_RX);
-//  MX_CAN2_Setup(ProtocolI_TX);
+
   MX_CAN1_Setup(ProtocolI_RX);
   MX_CAN2_Setup(ProtocolI_TX);
 
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_RXNE);
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  // Example Function to print can message via uart
-  //PrintCANLog(CAN1_pHeader.StdId, &CAN1_DATA_TX[0]);
+
   while (1)
   {
 
-	  CAN2_TX();
-	  delay(200);
-	  CAN1_TX();
-	  delay(200);
-//	  if(BtnU){
-//
-//		  USART3_SendString((uint8_t *)"IG OFF \n ");
-//		  CAN2_TX();
-//		  delay(2000);
-//		  CAN1_TX();
-//		  delay(1999);
-//	  }
-//	  else{
-//		  USART3_SendString((uint8_t *)"-> IG ON \n");
-//		  CAN2_TX();
-//		  delay(2000);
-//		  CAN1_TX();
-//		  delay(1999);
-//
-//	  }
+//	  CAN2_TX();
+//	  delay(2000);
+//	  CAN1_TX();
+//	  delay(2000);
+//    if(!BtnU) /*IG OFF->ON stimulation*/
+//    {
+//      delay(20);
+//      USART3_SendString((uint8_t *)"IG OFF \n");
+//      while(!BtnU){
+//      CAN2_TX();
+//      delay(2000);
+//      CAN1_TX();
+//      delay(2000);
+//      }
+//      while(!BtnU);
+////      MX_CAN1_Setup(ProtocolI_RX);
+////      MX_CAN2_Setup(ProtocolI_TX);
+//      USART3_SendString((uint8_t *)"-> IG ON \n");
+//      delay(20);
+//    }
 
 
-    if(!BtnU) /*IG OFF->ON stimulation*/
-    {
-      delay(20);
-      USART3_SendString((uint8_t *)"IG OFF \n");
-      while(!BtnU){
-      CAN2_TX();
-      delay(2000);
-      CAN1_TX();
-      delay(2000);
-      }
-      while(!BtnU);
-      MX_CAN1_Setup(ProtocolI_RX);
-      MX_CAN2_Setup(ProtocolI_TX);
-      USART3_SendString((uint8_t *)"-> IG ON \n");
-      delay(20);
-    }
     if(REQ_BUFFER[0] != 0)
     {
       delay(50);
@@ -229,13 +220,12 @@ int main(void)
 //      }
 //      USART3_SendString((uint8_t*)" \n");
 //    }
-//
+
    }
 
   memset(&REQ_BUFFER,0x00,4096);
   NumBytesReq = 0;
 
-  /* USER CODE END 3 */
 }
 }
 }
@@ -458,6 +448,7 @@ void MX_CAN2_Setup(uint32_t CANID)
 	HAL_CAN_ConfigFilter(&hcan2, &CAN2_sFilterConfig);
 	HAL_CAN_Start(&hcan2);
 	HAL_CAN_ActivateNotification(&hcan2, CAN_IT_RX_FIFO0_MSG_PENDING);
+
 	CAN2_pHeader.DLC = 8;
 	CAN2_pHeader.IDE = CAN_ID_STD;
 	CAN2_pHeader.RTR = CAN_RTR_DATA;
@@ -517,336 +508,137 @@ void delay(uint16_t delay)
 {
 	HAL_Delay(delay);
 }
-
-uint8_t calc_SAE_J1850(uint8_t data[], uint8_t crc_len)
-
-{
-    uint8_t idx, crc, temp1, temp2, idy;
-    crc = 0;
-    idx = 0;
-    idy = 0;
-    temp1 = 0;
-    temp2 = 0;
-    for(idx=0;idx < crc_len+1;idx++)
-    {
-        if(idx == 0)
-        {
-            temp1 = 0;
-        }
-        else
-        {
-            temp1 = data[crc_len-idx];
-        }
-        crc = (crc^temp1);
-        for(idy=(uint8_t)8; idy>0; idy--)
-        {
-            // Save the value before the top bit is shifted out.
-            temp2 = crc;
-            crc <<= 1;
-            if (0 != (temp2 & (uint8_t)128))
-                crc ^= 0x1D;
-        }
-    }
-    return crc;
-}
-
-void CAN1_TX(){
-	CAN1_pHeader.StdId = 0x12;
-	CAN1_pHeader.DLC = 8;
-	CAN1_pHeader.IDE = CAN_ID_STD;
-	CAN1_pHeader.RTR = CAN_RTR_DATA;
-	if(CAN1_DATA_RX[7] == calc_SAE_J1850(CAN1_DATA_RX,7)){
-		CAN1_DATA_TX[0] = 0x03;//0x01;
-		CAN1_DATA_TX[1] = 0x04;//0x02;
-		//CAN1_DATA_TX[2] = CAN1_DATA_TX[0]+CAN1_DATA_TX[1];
-        CAN1_DATA_TX[6] = (MessageCounter-0x01) &0xF;
-		CAN1_DATA_TX[7] = calc_SAE_J1850(CAN1_DATA_TX,7);
-	}else{
-		USART3_SendString((unsigned char *)"CAN1 ERROR \n");
-	}
-
-
-	char buffer1[9] = "CAN1 TX\n";
-	USART3_SendString((unsigned char *)buffer1);
-	PrintCANLog(0x12, CAN1_DATA_TX);
-	HAL_CAN_AddTxMessage(&hcan1, &CAN1_pHeader, CAN1_DATA_TX, &CAN1_pTxMailbox);
-	MessageCounter = MessageCounter & 0xF;
-}
-
-void CAN2_TX(){
-	CAN2_pHeader.StdId = 0xA2;
-	CAN2_pHeader.DLC = 8;
-	CAN2_pHeader.IDE = CAN_ID_STD;
-	CAN2_pHeader.RTR = CAN_RTR_DATA;
-				CAN2_DATA_TX[0] = 0x01;//rand() % 256; 0x01;
-				CAN2_DATA_TX[1] = 0x02;//rand() % 256; 0x02;
-				CAN2_DATA_TX[2] = CAN2_DATA_TX[0]+CAN2_DATA_TX[1];
-				CAN2_DATA_TX[6] = MessageCounter;
-				CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX,7);
-	if(BtnU)
-	{
-	if(CAN2_DATA_RX[7] == calc_SAE_J1850(CAN2_DATA_RX,7)){
-			CAN2_DATA_TX[0] = 0x01;//rand() % 256; 0x01;
-			CAN2_DATA_TX[1] = 0x02;//rand() % 256; 0x02;
-			CAN2_DATA_TX[2] = CAN2_DATA_TX[0]+CAN2_DATA_TX[1];
-			CAN2_DATA_TX[6] = MessageCounter;
-			CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX,7);
-	}else{
-		USART3_SendString((unsigned char *)"CAN2 ERROR \n");
-	}
-
-	}
-	else{
-			CAN2_DATA_TX[0] = 0x00;
-			CAN2_DATA_TX[1] = 0x00;
-			CAN2_DATA_TX[2] = 0x00;
-			CAN2_DATA_TX[3] = 0x00;
-			CAN2_DATA_TX[4] = 0x00;
-			CAN2_DATA_TX[5] = 0x00;
-			CAN2_DATA_TX[6] = MessageCounter;
-			CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX, 7);
-		}
-	char buffer2[9] = "CAN2 TX\n";
-	USART3_SendString((unsigned char *)buffer2);
-	PrintCANLog(0xA2, CAN2_DATA_TX);
-	HAL_CAN_AddTxMessage(&hcan2, &CAN2_pHeader, CAN2_DATA_TX, &CAN2_pTxMailbox);
-	MessageCounter = (MessageCounter + 1) & 0xF;
-	}
-
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-{
-  if (hcan == &hcan1)
-  {
-    if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX) != HAL_OK)
-    {
-      Error_Handler();
-    }
-    USART3_SendString((unsigned char *)"CAN1 RX \n");
-    PrintCANLog(0x0A2, CAN1_DATA_RX);
-  }
-  else if (hcan == &hcan2)
-  {
-    if (HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_pHeaderRx, CAN2_DATA_RX) != HAL_OK)
-    {
-      Error_Handler();
-    }
-    if(BtnU){
-    USART3_SendString((unsigned char *)"CAN2 RX \n");
-    PrintCANLog(0x012, CAN2_DATA_RX);
-    }else
-    {
-    USART3_SendString((unsigned char *)"CAN2 RX NOT RECEIVE DUE TO WRONG CRC \n");
-    }
-}
-}
-
-//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-//	if(GPIO_Pin == GPIO_PIN_1){
-//		delay(20);
-//		if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == GPIO_PIN_RESET){
-//			ButtonHandler();
-//		}
+//
+///*ham nay bai1 khong xoa */uint8_t calc_SAE_J1850(uint8_t data[], uint8_t crc_len)
+//
+//{
+//    uint8_t idx, crc, temp1, temp2, idy;
+//    crc = 0;
+//    idx = 0;
+//    idy = 0;
+//    temp1 = 0;
+//    temp2 = 0;
+//    for(idx=0;idx < crc_len+1;idx++)
+//    {
+//        if(idx == 0)
+//        {
+//            temp1 = 0;
+//        }
+//        else
+//        {
+//            temp1 = data[crc_len-idx];
+//        }
+//        crc = (crc^temp1);
+//        for(idy=(uint8_t)8; idy>0; idy--)
+//        {
+//            // Save the value before the top bit is shifted out.
+//            temp2 = crc;
+//            crc <<= 1;
+//            if (0 != (temp2 & (uint8_t)128))
+//                crc ^= 0x1D;
+//        }
+//    }
+//    return crc;
+//}
+//
+///*ham nay bai1 khong xoa */ void CAN1_TX(){
+//	CAN1_pHeader.StdId = 0x12;
+//	CAN1_pHeader.DLC = 8;
+//	CAN1_pHeader.IDE = CAN_ID_STD;
+//	CAN1_pHeader.RTR = CAN_RTR_DATA;
+//	if(CAN1_DATA_RX[7] == calc_SAE_J1850(CAN1_DATA_RX,7)){
+//		CAN1_DATA_TX[0] = 0x03;//0x01;
+//		CAN1_DATA_TX[1] = 0x04;//0x02;
+//		//CAN1_DATA_TX[2] = CAN1_DATA_TX[0]+CAN1_DATA_TX[1];
+//        CAN1_DATA_TX[6] = (MessageCounter-0x01) &0xF;
+//		CAN1_DATA_TX[7] = calc_SAE_J1850(CAN1_DATA_TX,7);
+//	}else{
+//		USART3_SendString((unsigned char *)"CAN1 ERROR \n");
 //	}
+//
+//
+//	char buffer1[9] = "CAN1 TX\n";
+//	USART3_SendString((unsigned char *)buffer1);
+//	PrintCANLog(0x12, CAN1_DATA_TX);
+//	HAL_CAN_AddTxMessage(&hcan1, &CAN1_pHeader, CAN1_DATA_TX, &CAN1_pTxMailbox);
+//	MessageCounter = MessageCounter & 0xF;
 //}
-//void ButtonHandler(){
-//	USART3_SendString((uint8_t *)"IG OFF\n");
-//	while(!BtnU);
-//	while (BtnU){
-//		CAN2_TX();
-//		delay(2000);
-//		CAN1_TX(0x12, 8, CAN_ID_STD, CAN_RTR_DATA, 0);
-//		delay(2000);
-//	 }
-//	USART3_SendString((uint8_t *)"-> IG ON\n");
-//	while(!BtnU);
-//	delay(20);
-//}
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){
-//	HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX);
-//	char buffer3[9] = "CAN1RX\n";
-//	USART3_SendString((unsigned char *)buffer3);
-//	PrintCANLog(0xA2, CAN1_DATA_RX);
-//}
-//void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){
-//	HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO1, &CAN2_pHeaderRx, CAN2_DATA_RX);
-//	char buffer4[9] = "CAN2RX\n";
-//	USART3_SendString((unsigned char *)buffer4);
-//	PrintCANLog(0x12, CAN2_DATA_RX);
-//}
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+//
+///*ham nay bai1 khong xoa */ void CAN2_TX(){
+//	CAN2_pHeader.StdId = 0xA2;
+//	CAN2_pHeader.DLC = 8;
+//	CAN2_pHeader.IDE = CAN_ID_STD;
+//	CAN2_pHeader.RTR = CAN_RTR_DATA;
+//				CAN2_DATA_TX[0] = 0x01;
+//				CAN2_DATA_TX[1] = 0x02;
+//				CAN2_DATA_TX[2] = CAN2_DATA_TX[0]+CAN2_DATA_TX[1];
+//				CAN2_DATA_TX[6] = MessageCounter;
+//				CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX,7);
+//	if(BtnU)
+//	{
+//	if(CAN2_DATA_RX[7] == calc_SAE_J1850(CAN2_DATA_RX,7)){
+//			CAN2_DATA_TX[0] = 0x01;
+//			CAN2_DATA_TX[1] = 0x02;
+//			CAN2_DATA_TX[2] = CAN2_DATA_TX[0]+CAN2_DATA_TX[1];
+//			CAN2_DATA_TX[6] = MessageCounter;
+//			CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX,7);
+//	}else{
+//		USART3_SendString((unsigned char *)"CAN2 ERROR \n");
+//	}
+//
+//	}
+//	else{
+//			CAN2_DATA_TX[0] = 0x00;
+//			CAN2_DATA_TX[1] = 0x00;
+//			CAN2_DATA_TX[2] = 0x00;
+//			CAN2_DATA_TX[3] = 0x00;
+//			CAN2_DATA_TX[4] = 0x00;
+//			CAN2_DATA_TX[5] = 0x00;
+//			CAN2_DATA_TX[6] = MessageCounter;
+//			CAN2_DATA_TX[7] = calc_SAE_J1850(CAN2_DATA_TX, 7);
+//		}
+//	char buffer2[9] = "CAN2 TX\n";
+//	USART3_SendString((unsigned char *)buffer2);
+//	PrintCANLog(0xA2, CAN2_DATA_TX);
+//	HAL_CAN_AddTxMessage(&hcan2, &CAN2_pHeader, CAN2_DATA_TX, &CAN2_pTxMailbox);
+//	MessageCounter = (MessageCounter + 1) & 0xF;
+//	}
+//
+///*ham nay bai1 khong xoa */ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 //{
-//        HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX);
-//        USART3_SendString((unsigned char *)"CAN1 RX - ");
-//        PrintCANLog(CAN1_pHeaderRx.StdId, CAN1_DATA_RX);
+//  if (hcan == &hcan1)
+//  {
+//    if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX) != HAL_OK)
+//    {
+//      Error_Handler();
+//    }
+//    USART3_SendString((unsigned char *)"CAN1 RX \n");
+//    PrintCANLog(0x0A2, CAN1_DATA_RX);
+//  }
+//  else if (hcan == &hcan2)
+//  {
+//    if (HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_pHeaderRx, CAN2_DATA_RX) != HAL_OK)
+//    {
+//      Error_Handler();
+//    }
+//    if(BtnU){
+//    USART3_SendString((unsigned char *)"CAN2 RX \n");
+//    PrintCANLog(0x012, CAN2_DATA_RX);
+//    }else
+//    {
+//    USART3_SendString((unsigned char *)"CAN2 RX NOT RECEIVE DUE TO WRONG CRC \n");
+//    }
 //}
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-//{
-//
-//        HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &CAN2_pHeaderRx, CAN2_DATA_RX);
-//        USART3_SendString((unsigned char *)"CAN2 RX - ");
-//        PrintCANLog(CAN2_pHeaderRx.StdId, CAN2_DATA_RX);
-//}
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-//{
-//    CAN_RxHeaderTypeDef *pHeaderRx;
-//    uint8_t *CAN_DATA_RX;
-//
-//    if (hcan->Instance == CAN1) {
-//        pHeaderRx = &CAN1_pHeaderRx;
-//        CAN_DATA_RX = CAN1_DATA_RX;
-//        USART3_SendString((unsigned char *)"CAN1 RX - ");
-//    }
-//    else if (hcan->Instance == CAN2) {
-//        pHeaderRx = &CAN2_pHeaderRx;
-//        CAN_DATA_RX = CAN2_DATA_RX;
-//        USART3_SendString((unsigned char *)"CAN2 RX - ");
-//    }
-//
-//    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, pHeaderRx, CAN_DATA_RX);
-//    PrintCANLog(pHeaderRx->StdId, CAN_DATA_RX);
-//}
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-//{
-//    CAN_RxHeaderTypeDef pHeaderRx;
-//    uint8_t CAN_DATA_RX[8]; // Khai báo mảng dữ liệu CAN với 8 byte
-//
-//    if (hcan == &hcan1) {
-//        USART3_SendString((unsigned char *)"CAN1 RX - ");
-//    }
-//    else if (hcan == &hcan2) {
-//        USART3_SendString((unsigned char *)"CAN2 RX - ");
-//    }
-//
-//    // Lấy tin nhắn từ FIFO 0
-//    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &pHeaderRx, CAN_DATA_RX);
-//
-//    // In ra CAN ID
-//    char buffer[20];
-//    sprintf(buffer, "CAN ID: %03X\n", pHeaderRx.StdId);
-//    USART3_SendString((unsigned char *)buffer);
-//
-//    // In ra dữ liệu CAN
-//    PrintCANLog(pHeaderRx.StdId, CAN_DATA_RX);
 //}
 
-
-//void CAN_Transmit(CAN_HandleTypeDef *hcan, CAN_TxHeaderTypeDef *pHeader, uint8_t pTxData[])
-//{
-//  HAL_CAN_AddTxMessage(hcan, pHeader, pTxData, &TxMailbox);
-//  if(hcan == &hcan1)
-//  {
-//    USART3_SendString((unsigned char *)"CAN1 TX - ");
-//  }
-//  else if(hcan == &hcan2)
-//  {
-//    USART3_SendString((unsigned char *)"CAN2 TX - ");
-//  }
-//  PrintCANLog(pHeader->StdId, pTxData);
-//}
-//void CAN_Transmit(CAN_HandleTypeDef *hcan, CAN_TxHeaderTypeDef *pHeader, uint8_t pTxData[])
-//{
-//  uint32_t TxMailbox;
-//
-//  HAL_CAN_AddTxMessage(hcan, pHeader, pTxData, &TxMailbox);
-//
-//  if(hcan == &hcan1)
-//  {
-//    USART3_SendString((unsigned char *)"CAN1 TX - ");
-//
-//  }
-//  else if(hcan == &hcan2)
-//  {
-//    USART3_SendString((unsigned char *)"CAN2 TX - ");
-//  }
-//
-//  PrintCANLog(pHeader->StdId, pTxData);
-//}
-//uint32_t lastSentStdId = 0;
-//
-//void CAN_Transmit(CAN_HandleTypeDef *hcan, CAN_TxHeaderTypeDef *pHeader, uint8_t pTxData[])
-//{
-//    uint32_t TxMailbox;
-//
-//    lastSentStdId = pHeader->StdId;  // Lưu lại ID đã gửi
-//
-//    HAL_CAN_AddTxMessage(hcan, pHeader, pTxData, &TxMailbox);
-//
-//    if(hcan == &hcan1)
-//    {
-//        USART3_SendString((unsigned char *)"CAN1 TX - ");
-//    }
-//    else if(hcan == &hcan2)
-//    {
-//        USART3_SendString((unsigned char *)"CAN2 TX - ");
-//    }
-//
-//    PrintCANLog(pHeader->StdId, pTxData);
-//}
-//
-//void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-//{
-////    CAN_RxHeaderTypeDef pHeaderRx;
-////    uint8_t CAN_DATA_RX[8]; // Khai báo mảng dữ liệu CAN với 8 byte
-//
-//    if (hcan == &hcan1) {
-//        USART3_SendString((unsigned char *)"CAN1 RX - ");
-//        HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX);
-//        PrintCANLog(&CAN1_pHeaderRx,CAN1_DATA_RX);
-//    }
-//    else if (hcan == &hcan2) {
-//        USART3_SendString((unsigned char *)"CAN2 RX - ");
-//        HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_pHeaderRx, CAN2_DATA_RX);
-//        PrintCANLog(can1,CAN2_DATA_RX);
-//    }
-
-    // Lấy tin nhắn từ FIFO 0
-//    HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &pHeaderRx, CAN_DATA_RX);
-//    PrintCANLog(pHeaderRx.StdId,CAN_DATA_RX);
-//    // Kiểm tra nếu ID nhận được giống với ID đã gửi
-//    if (pHeaderRx.StdId == lastSentStdId)
-//    {
-//        USART3_SendString((unsigned char *)"ID khớp!\n");
-//    }
-//    else
-//    {
-//        USART3_SendString((unsigned char *)"ID không khớp!\n");
-//    }
-//
-//    // In ra CAN ID
-//    char buffer[20];
-//    sprintf(buffer, "CAN ID: %03X\n", pHeaderRx.StdId);
-//    USART3_SendString((unsigned char *)buffer);
-//
-//    // In ra dữ liệu CAN
-//    PrintCANLog(pHeaderRx.StdId, CAN_DATA_RX);
-//}
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   USART3_SendString((unsigned char *)"Error Detected\n");
   while (1)
   {
   }
-  /* USER CODE END Error_Handler_Debug */
 }
-
 #ifdef  USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-}
-#endif /* USE_FULL_ASSERT */
+void assert_failed(uint8_t *file, uint32_t line){}
+#endif
