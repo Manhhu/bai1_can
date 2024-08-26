@@ -95,6 +95,9 @@ extern uint8_t Flg_Consecutive;
 
 extern unsigned int TimeStamp;
 
+extern uint16_t Gen_Ramdom_Seed();
+
+
 extern void USART3_SendString(uint8_t *ch);
 void PrintCANLog(uint16_t CANID, uint8_t * CAN_Frame);
 /* USER CODE END Private defines */

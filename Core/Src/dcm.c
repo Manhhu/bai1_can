@@ -404,6 +404,7 @@ uint16_t Gen_Ramdom_Seed()
 	Dcm_Msg_Info_s.dataBuff[4] = rand();/*seed1*/
 	Dcm_Msg_Info_s.dataBuff[5] = rand();/*seed2*/
 	Dcm_Msg_Info_s.dataBuff[6] = rand();/*seed3*/
+	Dcm_Msg_Info_s.dataBuff[7] = 55;/*seed3*/
 	Seca_Key_Internal[0] = (uint8_t)(Dcm_Msg_Info_s.dataBuff[3] ^ Dcm_Msg_Info_s.dataBuff[4]);
 	Seca_Key_Internal[1] = (uint8_t)(Dcm_Msg_Info_s.dataBuff[4] + Dcm_Msg_Info_s.dataBuff[5]);
 	Seca_Key_Internal[2] = (uint8_t)(Dcm_Msg_Info_s.dataBuff[5] ^ Dcm_Msg_Info_s.dataBuff[6]);

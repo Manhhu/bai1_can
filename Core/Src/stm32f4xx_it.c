@@ -195,6 +195,16 @@ void SysTick_Handler(void)
   /*Support to print time stamp in CAN log*/
   TimeStamp ++;
 
+  /*Seca will be enabled within 5sec via LED0*/
+  if(Seca_Timer>0)
+  {
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+	  Seca_Timer--;
+  }
+  else
+  {
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+  }
 
   /* USER CODE END SysTick_IRQn 1 */
 }
@@ -230,8 +240,32 @@ void CAN1_RX0_IRQHandler(void)
   /* USER CODE END CAN1_RX0_IRQn 0 */
   HAL_CAN_IRQHandler(&hcan1);
   /* USER CODE BEGIN CAN1_RX0_IRQn 1 */
-  HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX);
+  if(HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &CAN1_pHeaderRx, CAN1_DATA_RX) == HAL_OK)
+  {
 
+		if(CAN1_DATA_RX[0] <= 0x07)/*single frame response*/
+		{
+		  /*detect response for SID27*/
+		  PrintCANLog(CAN1_pHeaderRx.StdId, &CAN1_DATA_RX[0]);
+		  Dcm_Seca_Gen_Keys();
+
+		}
+		else if((CAN1_DATA_RX[0] & 0xF0) == DCM_FS_FRAME)/*first frame response*/
+		{
+		  /*send flow control from CAN1*/
+		}
+		else if((CAN1_DATA_RX[0] & 0xF0) == DCM_FC_FRAME)/*flowcontrol frame response*/
+		{
+			Flg_Consecutive = 0x01;
+			PrintCANLog(CAN1_pHeaderRx.StdId, &CAN1_DATA_RX[0]);
+		}
+		else if((CAN1_DATA_RX[0] & 0xF0) == DCM_CC_FRAME)/*consecutive frame response*/
+		{
+
+		}
+		else{}
+
+  }
   /* USER CODE END CAN1_RX0_IRQn 1 */
 }
 
@@ -257,37 +291,39 @@ void CAN2_RX0_IRQHandler(void)
   /* USER CODE BEGIN CAN2_RX0_IRQn 0 */
 	uint8_t NumByteSend;
   /* USER CODE END CAN2_RX0_IRQn 0 */
-    HAL_CAN_IRQHandler(&hcan2);
+  HAL_CAN_IRQHandler(&hcan2);
   /* USER CODE BEGIN CAN2_RX0_IRQn 1 */
 	HAL_CAN_GetRxMessage(&hcan2, CAN_RX_FIFO0, &CAN2_pHeaderRx, CAN2_DATA_RX);
 
 	CAN_TP2DCM(CAN2_pHeaderRx.StdId, CAN2_DATA_RX);
-		CAN_DCM2TP();
+	CAN_DCM2TP();
 
-		if(Dcm_Msg_Info_s.respType != DCM_NORESP)
+	if(Dcm_Msg_Info_s.respType != DCM_NORESP)
+	{
+		memset(&CAN2_DATA_TX,0x00,8);
+		if((Dcm_Msg_Info_s.dataBuff[0] & 0xF0) == 0x00)
+			NumByteSend = Dcm_Msg_Info_s.dataBuff[0] + 1;
+		else
+			NumByteSend = 8;
+
+		for(LoopIndx = 0; LoopIndx < NumByteSend; LoopIndx++)
 		{
-			memset(&CAN2_DATA_TX,0x00,8);
-			if((Dcm_Msg_Info_s.dataBuff[0] & 0xF0) == 0x00)
-				NumByteSend = Dcm_Msg_Info_s.dataBuff[0] + 1;
-			else
-				NumByteSend = 8;
-
-			for(LoopIndx = 0; LoopIndx < NumByteSend; LoopIndx++)
-			{
-				CAN2_DATA_TX[LoopIndx] = Dcm_Msg_Info_s.dataBuff[LoopIndx];
-			}
-			if((CAN2_DATA_TX[0] & 0xF0) == 0x20)
-			{
-				Flg_Consecutive = 0x01;
-			}
-			else
-			{
-				HAL_CAN_AddTxMessage(&hcan2, &CAN2_pHeader, CAN2_DATA_TX, &CAN2_pTxMailbox);
-			}
+			CAN2_DATA_TX[LoopIndx] = Dcm_Msg_Info_s.dataBuff[LoopIndx];
 		}
+		if((CAN2_DATA_TX[0] & 0xF0) == 0x20)
+		{
+			Flg_Consecutive = 0x01;
+		}
+		else
+		{
+			HAL_CAN_AddTxMessage(&hcan2, &CAN2_pHeader, CAN2_DATA_TX, &CAN2_pTxMailbox);
+		}
+	}
+
   /* USER CODE END CAN2_RX0_IRQn 1 */
 }
 
+/* USER CODE BEGIN 1 */
 void Dcm_Seca_Gen_Keys()
 {
 	if((CAN1_DATA_RX[1] == 0x67) && (CAN1_DATA_RX[2] == 0x01))
@@ -354,8 +390,4 @@ void Dcm_Seca_Gen_Keys()
 	}
 	else{}
 }
-/* USER CODE END 1 */
-
-/* USER CODE BEGIN 1 */
-
 /* USER CODE END 1 */

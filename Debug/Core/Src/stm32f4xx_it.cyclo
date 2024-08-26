@@ -6,9 +6,9 @@
 ../Core/Src/stm32f4xx_it.c:148:6:SVC_Handler	1
 ../Core/Src/stm32f4xx_it.c:161:6:DebugMon_Handler	1
 ../Core/Src/stm32f4xx_it.c:174:6:PendSV_Handler	1
-../Core/Src/stm32f4xx_it.c:187:6:SysTick_Handler	1
-../Core/Src/stm32f4xx_it.c:212:6:EXTI0_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:226:6:CAN1_RX0_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:241:6:USART3_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:255:6:CAN2_RX0_IRQHandler	5
-../Core/Src/stm32f4xx_it.c:291:6:Dcm_Seca_Gen_Keys	4
+../Core/Src/stm32f4xx_it.c:187:6:SysTick_Handler	2
+../Core/Src/stm32f4xx_it.c:222:6:EXTI0_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:236:6:CAN1_RX0_IRQHandler	5
+../Core/Src/stm32f4xx_it.c:275:6:USART3_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:289:6:CAN2_RX0_IRQHandler	5
+../Core/Src/stm32f4xx_it.c:327:6:Dcm_Seca_Gen_Keys	4
